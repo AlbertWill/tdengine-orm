@@ -17,11 +17,9 @@
 
 在 Swoole 环境中支持协程化，不会阻塞！
 
-技术支持 QQ 群: 17916227[![点击加群](https://pub.idqqimg.com/wpa/images/group.png "点击加群")](https://jq.qq.com/?_wv=1027&k=5wXf4Zq)，如有问题可以及时解答和修复。
-
 ## 安装
 
-`composer require yurunsoft/tdengine-orm`
+`composer require xincheng/tdengine-orm`
 
 ## 使用
 
