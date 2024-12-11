@@ -19,7 +19,7 @@
 
 ## 安装
 
-`composer require xincheng/tdengine-orm`
+`composer require albertwill/tdengine-orm`
 
 ## 使用
 
