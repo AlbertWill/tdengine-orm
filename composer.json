@@ -1,5 +1,5 @@
 {
-    "name": "xincheng/tdengine-orm",
+    "name": "albertwill/tdengine-orm",
     "license": "MIT",
     "require": {
         "php": ">=7.1",
