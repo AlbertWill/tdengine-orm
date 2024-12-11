@@ -23,6 +23,7 @@ class TestUtil
             'password'        => getenv('TDENGINE_PASSWORD') ?: 'taosdata',
             'ssl'             => getenv('TDENGINE_SSL') ?: false,
             'timestampFormat' => getenv('TDENGINE_TIMESTAMP_FORMAT') ?: TimeStampFormat::TIMESTAMP,
+            'version'       => getenv('VERSION') ?: '3',
         ]);
     }
 
@@ -35,6 +36,7 @@ class TestUtil
             'user'            => getenv('TDENGINE_USER') ?: 'root',
             'password'        => getenv('TDENGINE_PASSWORD') ?: 'taosdata',
             'timestampFormat' => getenv('TDENGINE_TIMESTAMP_FORMAT') ?: TimeStampFormat::TIMESTAMP,
+            'version'       => getenv('VERSION') ?: '3',
         ]);
     }
 }
