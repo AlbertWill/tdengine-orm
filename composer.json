@@ -1,5 +1,5 @@
 {
-    "name": "yurunsoft/tdengine-orm",
+    "name": "albertsoft/tdengine-orm",
     "license": "MIT",
     "require": {
         "php": ">=7.1",
