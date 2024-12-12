@@ -63,14 +63,14 @@ abstract class BaseModel implements \JsonSerializable
         $fields = [];
         foreach ($meta->getFields() as $propertyName => $annotation)
         {
-            $fields[] = ($annotation->name ?? $propertyName) . ' ' . $annotation->type . ($annotation->length > 0 ? ('(' . $annotation->length . ')') : '') . ($annotation->primary_key ? ' PRIMARY KEY' : '');
+            $fields[] = '`' . ($annotation->name ?? $propertyName) . '` ' . $annotation->type . ($annotation->length > 0 ? ('(' . $annotation->length . ')') : '') . ($annotation->primary_key ? ' PRIMARY KEY' : '');
         }
-        $sql .= $tableAnnotation->database . '.' . $tableAnnotation->name . ' (' . implode(',', $fields) . ')';
+        $sql .= '`' . $tableAnnotation->database . '`.`' . $tableAnnotation->name . '` (' . implode(',', $fields) . ')';
 
         $fields = [];
         foreach ($meta->getTags() as $propertyName => $annotation)
         {
-            $fields[] = ($annotation->name ?? $propertyName) . ' ' . $annotation->type . ($annotation->length > 0 ? ('(' . $annotation->length . ')') : '');
+            $fields[] = '`' . ($annotation->name ?? $propertyName) . '` ' . $annotation->type . ($annotation->length > 0 ? ('(' . $annotation->length . ')') : '');
         }
         $sql .= ' TAGS (' . implode(',', $fields) . ')';
 
@@ -90,7 +90,7 @@ abstract class BaseModel implements \JsonSerializable
         {
             $sql .= 'IF NOT EXISTS ';
         }
-        $sql .= $tableAnnotation->database . '.' . $tableName . ' USING ' . $tableAnnotation->database . '.' . $tableAnnotation->name . ' ';
+        $sql .=  '`' . $tableAnnotation->database . '`.`' . $tableName . '` USING `' . $tableAnnotation->database . '`.`' . $tableAnnotation->name . '` ';
         if ($tags)
         {
             if (array_is_list($tags))
@@ -127,7 +127,7 @@ abstract class BaseModel implements \JsonSerializable
                     {
                         continue;
                     }
-                    $propertyNames[] = $tagAnnotation->name ?? $key;
+                    $propertyNames[] = '`' . ($tagAnnotation->name ?? $key) . '`';
                     $values[] = self::parseValue($tagAnnotation->type, $value);
                 }
                 if ($values)
@@ -156,11 +156,11 @@ abstract class BaseModel implements \JsonSerializable
                 {
                     throw new \RuntimeException('Table name cannot be null');
                 }
-                $sql .= $tableAnnotation->database . '.' . $table . ' USING ' . $tableAnnotation->database . '.' . $tableAnnotation->name;
+                $sql .= '`' . $tableAnnotation->database . '`.`' . $table . '` USING `' . $tableAnnotation->database . '`.`' . $tableAnnotation->name . '`';
                 $tags = $tagValues = [];
                 foreach ($meta->getTags() as $propertyName => $tagAnnotation)
                 {
-                    $tags[] = $tagAnnotation->name ?? $propertyName;
+                    $tags[] = '`' . ($tagAnnotation->name ?? $propertyName) . '`';
                     $tagValues[] = self::parseValue($tagAnnotation->type, $model->$propertyName);
                 }
                 if ($tags)
@@ -171,7 +171,7 @@ abstract class BaseModel implements \JsonSerializable
             $fields = $values = [];
             foreach ($meta->getFields() as $propertyName => $fieldAnnotation)
             {
-                $fields[] = $fieldAnnotation->name ?? $propertyName;
+                $fields[] = '`' . ($fieldAnnotation->name ?? $propertyName) . '`';
                 $values[] = self::parseValue($fieldAnnotation->type, $model->$propertyName);
             }
             if ($fields)
