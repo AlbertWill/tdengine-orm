@@ -29,6 +29,11 @@ abstract class BaseModel implements \JsonSerializable
      */
     protected $__table;
 
+    /**
+     * 构造方法
+     * @param array $data
+     * @param string|null $table
+     */
     public function __construct(array $data = [], ?string $table = null)
     {
         $this->__meta = $meta = static::__getMeta();
@@ -53,6 +58,8 @@ abstract class BaseModel implements \JsonSerializable
     /**
      * 插入一条数据
      * @return IQueryResult
+     * @throws \Yurun\TDEngine\Exception\NetworkException
+     * @throws \Yurun\TDEngine\Exception\OperationException
      */
     public function insert(): IQueryResult
     {
