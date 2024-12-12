@@ -103,7 +103,7 @@ class DataType
     public const JSON = 'JSON';
 
     /**
-     * BINARY 类型的别名
+     * BINARY 类型的别名。记录单字节字符串，建议只用于处理 ASCII 可见字符，中文等多字节字符需使用 NCHAR
      * Bytes:自定义
      */
     public const VARCHAR = 'VARCHAR';

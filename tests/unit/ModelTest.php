@@ -100,12 +100,24 @@ class ModelTest extends TestCase
         $table2 = 'device_batch_insert_2';
         $time = microtime(true);
         $time2 = (int) ($time * 1000);
-        $records[] = new DeviceLogModel([
+        $data2 = [
             'time'            => gmdate('Y-m-d\TH:i:s.', (int) $time) . substr((string) $time2, -3, 3) . 'Z',
             'deviceId'        => '00000002',
             'voltage'         => 1.1,
             'electricCurrent' => 2.2,
-        ], $table2);
+        ];
+        $records[] = new DeviceLogModel($data2, $table2);
+
+        usleep(1000);
+        $table3 = 'device_batch_insert_3';
+        $time3 = (int) ($time * 1000);
+        $data3 = [
+            'time'            => gmdate('Y-m-d\TH:i:s.', (int) $time) . substr((string) $time3, -3, 3) . 'Z',
+            'device_id'        => '00000003',
+            'voltage'         => 1.3,
+            'electric_current' => 5.2,
+        ];
+        $records[] = new DeviceLogModel($data3, $table3);
         DeviceLogModel::batchInsert($records);
 
         $client = TDEngineManager::getClient('test');
@@ -133,6 +145,7 @@ class ModelTest extends TestCase
             var_dump($result->getData());
             $this->assertTrue(false);
         }
+
         $result = $client->sql('select * from device.device_batch_insert_2 order by time desc limit 1');
         if ([
             [
@@ -153,6 +166,31 @@ class ModelTest extends TestCase
                 'electric_current' => 2.2,
             ],
         ] !== $result->getData())
+        {
+            var_dump($result->getData());
+            $this->assertTrue(false);
+        }
+
+        $result = $client->sql('select * from device.device_batch_insert_3 order by time desc limit 1');
+        if ([
+                [
+                    'time'             => $time3,
+                    'voltage'         => 1.3,
+                    'electric_current' => 5.2,
+                ],
+            ] !== $result->getData() && [
+                [
+                    'time'             => gmdate('Y-m-d\TH:i:s.', (int) ($time3 / 1000)) . substr((string) $time3, -3, 3) . 'Z',
+                    'voltage'         => 1.3,
+                    'electric_current' => 5.2,
+                ],
+            ] !== $result->getData() && [
+                [
+                    'time'             => gmdate('Y-m-d H:i:s.', (int) ($time3 / 1000)) . substr((string) $time3, -3, 3),
+                    'voltage'         => 1.3,
+                    'electric_current' => 5.2,
+                ],
+            ] !== $result->getData())
         {
             var_dump($result->getData());
             $this->assertTrue(false);

@@ -31,4 +31,11 @@ class Field
      * @var int
      */
     public $length = 0;
+
+    /**
+     * 是否为主键
+     *
+     * @var bool
+     */
+    public $primary_key;
 }

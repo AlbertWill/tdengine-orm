@@ -55,7 +55,7 @@ abstract class BaseModel implements \JsonSerializable
     {
         $meta = self::__getMeta();
         $tableAnnotation = $meta->getTable();
-        $sql = 'CREATE TABLE ';
+        $sql = 'CREATE STABLE ';
         if ($ifNotExists)
         {
             $sql .= 'IF NOT EXISTS ';
@@ -63,7 +63,7 @@ abstract class BaseModel implements \JsonSerializable
         $fields = [];
         foreach ($meta->getFields() as $propertyName => $annotation)
         {
-            $fields[] = ($annotation->name ?? $propertyName) . ' ' . $annotation->type . ($annotation->length > 0 ? ('(' . $annotation->length . ')') : '');
+            $fields[] = ($annotation->name ?? $propertyName) . ' ' . $annotation->type . ($annotation->length > 0 ? ('(' . $annotation->length . ')') : '') . ($annotation->primary_key ? ' PRIMARY KEY' : '');
         }
         $sql .= $tableAnnotation->database . '.' . $tableAnnotation->name . ' (' . implode(',', $fields) . ')';
 
@@ -156,7 +156,7 @@ abstract class BaseModel implements \JsonSerializable
                 {
                     throw new \RuntimeException('Table name cannot be null');
                 }
-                $sql .= $tableAnnotation->database . '.' . $table . ' using ' . $tableAnnotation->database . '.' . $tableAnnotation->name;
+                $sql .= $tableAnnotation->database . '.' . $table . ' USING ' . $tableAnnotation->database . '.' . $tableAnnotation->name;
                 $tags = $tagValues = [];
                 foreach ($meta->getTags() as $propertyName => $tagAnnotation)
                 {
@@ -298,6 +298,7 @@ abstract class BaseModel implements \JsonSerializable
                 }
                 // no break
             case DataType::BINARY:
+            case DataType::VARCHAR:
             case DataType::NCHAR:
                 return '\'' . strtr($value, [
                     "\0"     => '\0',
