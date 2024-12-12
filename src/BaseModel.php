@@ -32,30 +32,45 @@ abstract class BaseModel implements \JsonSerializable
     public function __construct(array $data = [], ?string $table = null)
     {
         $this->__meta = $meta = static::__getMeta();
-        foreach ($meta->getProperties() as $propertyName => $property)
-        {
-            if (isset($data[$propertyName]))
+        $this->__table = $table;
+        //初始化字段
+        if($data){
+            foreach ($meta->getProperties() as $propertyName => $property)
             {
-                $this->$propertyName = $data[$propertyName];
-            }
-            elseif (isset($data[$property->name]))
-            {
-                $this->$propertyName = $data[$property->name];
+                if (isset($data[$propertyName]))
+                {
+                    $this->$propertyName = $data[$propertyName];
+                }
+                elseif (isset($data[$property->name]))
+                {
+                    $this->$propertyName = $data[$property->name];
+                }
             }
         }
-        $this->__table = $table;
+
     }
 
+    /**
+     * 插入一条数据
+     * @return IQueryResult
+     */
     public function insert(): IQueryResult
     {
         return self::batchInsert([$this]);
     }
 
+    /**
+     * 创建超级表
+     * @param bool $ifNotExists
+     * @return IQueryResult
+     * @throws \Yurun\TDEngine\Exception\NetworkException
+     * @throws \Yurun\TDEngine\Exception\OperationException
+     */
     public static function createSuperTable(bool $ifNotExists = true): IQueryResult
     {
         $meta = self::__getMeta();
         $tableAnnotation = $meta->getTable();
-        $sql = 'CREATE STABLE ';
+        $sql = 'CREATE TABLE ';
         if ($ifNotExists)
         {
             $sql .= 'IF NOT EXISTS ';
@@ -77,6 +92,15 @@ abstract class BaseModel implements \JsonSerializable
         return TDEngineOrm::getClientHandler()->query($sql, $tableAnnotation->client ?? null);
     }
 
+    /**
+     * 创建表
+     * @param string $tableName 表名
+     * @param array $tags 标签数组
+     * @param bool $ifNotExists
+     * @return IQueryResult
+     * @throws \Yurun\TDEngine\Exception\NetworkException
+     * @throws \Yurun\TDEngine\Exception\OperationException
+     */
     public static function createTable(string $tableName, array $tags = [], bool $ifNotExists = true): IQueryResult
     {
         $meta = self::__getMeta();
@@ -141,7 +165,11 @@ abstract class BaseModel implements \JsonSerializable
     }
 
     /**
-     * @param static[] $models
+     * 批量插入数据
+     * @param array $models
+     * @return IQueryResult
+     * @throws \Yurun\TDEngine\Exception\NetworkException
+     * @throws \Yurun\TDEngine\Exception\OperationException
      */
     public static function batchInsert(array $models): IQueryResult
     {

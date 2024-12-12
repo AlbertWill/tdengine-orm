@@ -17,11 +17,19 @@ class TDEngineOrm
     {
     }
 
+    /**
+     * 设置客户端
+     * @param IClientHandler $clientHandler
+     */
     public static function setClientHandler(IClientHandler $clientHandler): void
     {
         self::$clientHandler = $clientHandler;
     }
 
+    /**
+     * 获取客户端
+     * @return IClientHandler
+     */
     public static function getClientHandler(): IClientHandler
     {
         if (self::$clientHandler)

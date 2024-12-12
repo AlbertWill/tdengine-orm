@@ -11,7 +11,10 @@ use Yurun\TDEngine\TDEngineManager;
 class Handler implements IClientHandler
 {
     /**
-     * 查询.
+     * 查询
+     * @param string $sql
+     * @param string|null $name
+     * @return IQueryResult
      */
     public function query(string $sql, ?string $name = null): IQueryResult
     {
