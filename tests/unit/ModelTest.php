@@ -55,7 +55,7 @@ class ModelTest extends TestCase
         $record->deviceId = '00000001';
         $record->voltage = 1.23;
         $record->electricCurrent = 4.56;
-        $record->insert();
+        DeviceLogModel::batchInsert([$record]);
 
         $client = TDEngineManager::getClient('test');
         $result = $client->sql('select * from device.device_insert order by time desc limit 1');
@@ -82,6 +82,23 @@ class ModelTest extends TestCase
             var_dump($result->getData());
             $this->assertTrue(false);
         }
+        $this->assertTrue(true);
+    }
+
+    public function testDeleteAll(): void
+    {
+        $time = (int) (microtime(true) * 1000);
+        $condition = [
+            ['<=', 'time', $time]
+        ];
+        DeviceLogModel::deleteAll($condition);
+
+        $client = TDEngineManager::getClient('test');
+        $result = $client->sql('select * from device.device_insert where time<=' . $time);
+        if(!empty($result->getData())){
+            $this->assertTrue(false);
+        }
+
         $this->assertTrue(true);
     }
 
@@ -196,6 +213,40 @@ class ModelTest extends TestCase
             $this->assertTrue(false);
         }
 
+        $this->assertTrue(true);
+    }
+
+    public function testQueryList(): void
+    {
+        $time = (int) (microtime(true) * 1000);
+        $condition = [
+            ['<=', 'time', $time]
+        ];
+        $colums = [
+            'time as tttt',
+            'voltage',
+            'device_id',
+        ];
+        $pageSize = 2;
+        $page = 1;
+        $orderBy = 'voltage ASC';
+        $result = DeviceLogModel::queryList($condition, $colums, $pageSize, $page, $orderBy);
+        if(count($result->getData())!==2){
+            var_dump($result->getData());
+            $this->assertTrue(false);
+        }
+        $colums = [
+            'device_id'
+        ];
+        $pageSize = 2;
+        $page = 1;
+        $orderBy = '';
+        $groupBy = 'device_id';
+        $result = DeviceLogModel::queryList($condition, $colums, $pageSize, $page, $orderBy, $groupBy);
+        if(count($result->getData())!==3){
+            var_dump($result->getData());
+            $this->assertTrue(false);
+        }
         $this->assertTrue(true);
     }
 

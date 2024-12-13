@@ -56,17 +56,6 @@ abstract class BaseModel implements \JsonSerializable
     }
 
     /**
-     * 插入一条数据
-     * @return IQueryResult
-     * @throws \Yurun\TDEngine\Exception\NetworkException
-     * @throws \Yurun\TDEngine\Exception\OperationException
-     */
-    public function insert(): IQueryResult
-    {
-        return self::batchInsert([$this]);
-    }
-
-    /**
      * 创建超级表
      * @param bool $ifNotExists
      * @return IQueryResult
@@ -87,7 +76,7 @@ abstract class BaseModel implements \JsonSerializable
         {
             $fields[] = '`' . ($annotation->name ?? $propertyName) . '` ' . $annotation->type . ($annotation->length > 0 ? ('(' . $annotation->length . ')') : '') . ($annotation->primary_key ? ' PRIMARY KEY' : '');
         }
-        $sql .= '`' . $tableAnnotation->database . '`.`' . $tableAnnotation->name . '` (' . implode(',', $fields) . ')';
+        $sql .= self::getFullTableName() . ' (' . implode(',', $fields) . ')';
 
         $fields = [];
         foreach ($meta->getTags() as $propertyName => $annotation)
@@ -121,7 +110,7 @@ abstract class BaseModel implements \JsonSerializable
         {
             $sql .= 'IF NOT EXISTS ';
         }
-        $sql .=  '`' . $tableAnnotation->database . '`.`' . $tableName . '` USING `' . $tableAnnotation->database . '`.`' . $tableAnnotation->name . '` ';
+        $sql .=  '`' . $tableAnnotation->database . '`.`' . $tableName . '` USING ' . self::getFullTableName() . ' ';
         if ($tags)
         {
             if (array_is_list($tags))
@@ -191,7 +180,7 @@ abstract class BaseModel implements \JsonSerializable
                 {
                     throw new \RuntimeException('Table name cannot be null');
                 }
-                $sql .= '`' . $tableAnnotation->database . '`.`' . $table . '` USING `' . $tableAnnotation->database . '`.`' . $tableAnnotation->name . '`';
+                $sql .= '`' . $tableAnnotation->database . '`.`' . $table . '` USING ' . self::getFullTableName();
                 $tags = $tagValues = [];
                 foreach ($meta->getTags() as $propertyName => $tagAnnotation)
                 {
@@ -219,7 +208,157 @@ abstract class BaseModel implements \JsonSerializable
     }
 
     /**
-     * 获取模型元数据.
+     * 根据条件删除数据
+     * @param array $condition 条件数组
+     * @return IQueryResult
+     * @throws \Yurun\TDEngine\Exception\NetworkException
+     * @throws \Yurun\TDEngine\Exception\OperationException
+     */
+    public static function deleteAll(array $condition): IQueryResult
+    {
+        if(empty($condition)){
+            throw new \RuntimeException('condition cannot be null');
+        }
+        $where = self::buildWhere(self::__getMeta(), $condition);
+        $sql = 'DELETE FROM ' . self::getFullTableName() . ' ' .  $where;
+
+        return TDEngineOrm::getClientHandler()->query($sql, self::__getMeta()->getTable()->client ?? null);
+    }
+
+    /**
+     * 根据条件查询数据
+     * @param array $condition 条件数组
+     * @param string|array $colums
+     * @param int $pageSize
+     * @param int $page
+     * @param string|array $orderBy
+     * @param string|array $groupBy
+     * @return IQueryResult
+     * @throws \Yurun\TDEngine\Exception\NetworkException
+     * @throws \Yurun\TDEngine\Exception\OperationException
+     */
+    public static function queryList(array $condition, $colums, int $pageSize=0, int $page=1,  $orderBy='',  $groupBy=''): IQueryResult
+    {
+        if(empty($colums))
+        {
+            throw new \RuntimeException('colums cannot be null');
+        }
+        //查询字段
+        $sql = 'SELECT ' . self::buildCommaSeparatedString($colums);
+        //查询对象
+        $sql .=  ' FROM ' . self::getFullTableName();
+        //查询条件
+        if($condition){
+            $sql .= ' ' . self::buildWhere(self::__getMeta(), $condition);
+        }
+        //GROUP BY
+        if($groupBy){
+            $sql .= ' GROUP BY ' . self::buildCommaSeparatedString($groupBy);
+        }
+        //ORDER BY
+        if($orderBy){
+            $sql .= ' ORDER BY ' . self::buildCommaSeparatedString($orderBy);
+        }
+        //LIMIT
+        if ($pageSize > 0 && $page > 0) {
+            $offset = ($page - 1) * $pageSize;
+            if($offset > 0){
+                $sql .= ' LIMIT ' . $offset . ',' . $pageSize;
+            }else{
+                $sql .= ' LIMIT ' . $pageSize;
+            }
+        }
+
+        return TDEngineOrm::getClientHandler()->query($sql, self::__getMeta()->getTable()->client ?? null);
+    }
+
+    /**
+     * 获取完整的表名
+     * @return string
+     */
+    public static function getFullTableName():string
+    {
+        $tableAnnotation = self::__getMeta()->getTable();
+        return '`' . $tableAnnotation->database . '`.`' . $tableAnnotation->name . '`';
+    }
+
+    /**
+     * 将输入（字符串或数组）转换为逗号分隔的字符串
+     * @param mixed $input
+     * @return string
+     */
+    public static function buildCommaSeparatedString(mixed $input): string
+    {
+        $str = '';
+        if(is_string($input)){
+            $str = $input;
+        }else if (is_array($input)){
+            $str = implode(',', $input);
+        }
+        return $str;
+    }
+
+    /**
+     * 生成where条件
+     * @param Meta $meta
+     * @param array $condition
+     * @return string
+     */
+    public static function buildWhere(Meta $meta, array $condition): string
+    {
+        $fieldTypeMap = self::getFieldTypeMap($meta);
+        //生成where
+        $where = [];
+        foreach ($condition as $item){
+            list($operator, $field, $value) = $item;
+            //类型转换
+            if(!isset($fieldTypeMap[$field])){
+                continue;
+            }
+            $value_str = '';
+            if(is_array($value)){
+                $valueTmp = [];
+                foreach ($value as $v){
+                    $valueTmp[] = self::parseValue($fieldTypeMap[$field], $v);
+                }
+                $value_str =  '(' . implode(',', $valueTmp) . ')';
+            }else{
+                $value_str = self::parseValue($fieldTypeMap[$field], $value);
+            }
+            $where[] = '(`' . $field. '` ' .  $operator . ' ' . $value_str . ')';
+        }
+        $sql = 'WHERE ';
+        if($where){
+            $sql .= implode(' AND ', $where);
+        }
+        return $sql;
+    }
+
+    /**
+     * 获取字段类型映射
+     * @param Meta $meta
+     * @return array
+     */
+    protected static function getFieldTypeMap(Meta $meta): array
+    {
+        //字段类型映射
+        $fieldTypeMap = [];
+        foreach ($meta->getFields() as $propertyName => $fieldAnnotation)
+        {
+            $field = $fieldAnnotation->name ?? $propertyName;
+            $fieldTypeMap[$field] = $fieldAnnotation->type;
+        }
+        foreach ($meta->getTags() as $propertyName => $tagAnnotation)
+        {
+            $field = $tagAnnotation->name ?? $propertyName;
+            $fieldTypeMap[$field] = $tagAnnotation->type;
+        }
+        return $fieldTypeMap;
+    }
+
+    /**
+     * 获取模型元数据
+     * @return Meta
      */
     public static function __getMeta(): Meta
     {
@@ -228,10 +367,9 @@ abstract class BaseModel implements \JsonSerializable
 
     /**
      * @param string $name
-     *
-     * @return mixed
+     * @return null
      */
-    public function &__get($name)
+    public function &__get(string $name)
     {
         $methodName = 'get' . ucfirst($name);
         if (method_exists($this, $methodName))
@@ -248,11 +386,10 @@ abstract class BaseModel implements \JsonSerializable
 
     /**
      * @param string $name
-     * @param mixed  $value
-     *
+     * @param $value
      * @return void
      */
-    public function __set($name, $value)
+    public function __set(string $name, $value):void
     {
         $methodName = 'set' . ucfirst($name);
 

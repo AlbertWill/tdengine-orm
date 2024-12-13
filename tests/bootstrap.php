@@ -12,4 +12,5 @@ date_default_timezone_set('Asia/Shanghai');
 TDEngineManager::setClientConfig('test', TestUtil::getClientConfig());
 TDEngineManager::setClientConfig('test-extension', TestUtil::getExtensionClientConfig());
 TDEngineManager::setDefaultClientName('test');
+//TDEngineManager::getClient()->sql('DROP DATABASE IF NOT EXISTS device');die;
 TDEngineManager::getClient()->sql('CREATE DATABASE IF NOT EXISTS device');
