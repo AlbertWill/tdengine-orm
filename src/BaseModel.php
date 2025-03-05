@@ -284,10 +284,10 @@ abstract class BaseModel implements \JsonSerializable
 
     /**
      * 将输入（字符串或数组）转换为逗号分隔的字符串
-     * @param mixed $input
+     * @param string|array $input
      * @return string
      */
-    public static function buildCommaSeparatedString(mixed $input): string
+    public static function buildCommaSeparatedString($input): string
     {
         $str = '';
         if(is_string($input)){
@@ -451,9 +451,9 @@ abstract class BaseModel implements \JsonSerializable
     }
 
     /**
-     * @param mixed $value
-     *
-     * @return mixed
+     * @param string $type
+     * @param $value
+     * @return string
      */
     public static function parseValue(string $type, $value)
     {
