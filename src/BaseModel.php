@@ -170,17 +170,21 @@ abstract class BaseModel implements \JsonSerializable
     public static function batchInsert(array $models): IQueryResult
     {
         $sql = 'INSERT INTO ';
+        $data_sql_arr = [];
         foreach ($models as $model)
         {
+            $data_sql = '';
             $meta = $model::__getMeta();
             $tableAnnotation = $meta->getTable();
+            $database = $tableAnnotation->database;
+            $stable = $tableAnnotation->name;
             if ($tableAnnotation->super)
             {
                 if (null === ($table = $model->__getTable()))
                 {
                     throw new \RuntimeException('Table name cannot be null');
                 }
-                $sql .= '`' . $tableAnnotation->database . '`.`' . $table . '` USING ' . self::getFullTableName();
+                $data_sql .= '`' . $database . '`.`' . $table . '` USING `' . $database . '`.`' . $stable . '` ';
                 $tags = $tagValues = [];
                 foreach ($meta->getTags() as $propertyName => $tagAnnotation)
                 {
@@ -189,7 +193,7 @@ abstract class BaseModel implements \JsonSerializable
                 }
                 if ($tags)
                 {
-                    $sql .= '(' . implode(',', $tags) . ') TAGS (' . implode(',', $tagValues) . ') ';
+                    $data_sql .= '(' . implode(',', $tags) . ') TAGS (' . implode(',', $tagValues) . ') ';
                 }
             }
             $fields = $values = [];
@@ -200,10 +204,11 @@ abstract class BaseModel implements \JsonSerializable
             }
             if ($fields)
             {
-                $sql .= '(' . implode(',', $fields) . ') VALUES (' . implode(',', $values) . ') ';
+                $data_sql .= '(' . implode(',', $fields) . ') VALUES (' . implode(',', $values) . ') ';
             }
+            $data_sql_arr[] = $data_sql;
         }
-
+        $sql .= implode(',', $data_sql_arr);
         return TDEngineOrm::getClientHandler()->query($sql, self::__getMeta()->getTable()->client ?? null);
     }
 
