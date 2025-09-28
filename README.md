@@ -104,12 +104,18 @@ class DeviceLogModel extends BaseModel
 DeviceLogModel::createSuperTable();
 ```
 
-**创建表：**
+**创建超级表的子表：**
 
 ```php
 $table = '表名';
 $deviceId = '00000001'; // 这是 TAGS
-DeviceLogModel::createTable($table, [$deviceId]);
+DeviceLogModel::createSubTable($table, [$deviceId]);
+```
+
+**创建普通表：**
+
+```php
+DeviceLogModel::createTables();
 ```
 
 **插入数据：**

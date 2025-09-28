@@ -24,25 +24,25 @@ class ModelTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function testCreateTable(): void
+    public function testCreateSubTable(): void
     {
         $client = TDEngineManager::getClient('test');
 
         $table = 'device_' . md5(uniqid('', true));
         $deviceId = md5(uniqid('', true));
-        DeviceLogModel::createTable($table, [$deviceId]);
+        DeviceLogModel::createSubTable($table, [$deviceId]);
         $this->assertTableExists($table);
         $client->sql('DROP TABLE device.' . $table);
 
         $table = 'device_' . md5(uniqid('', true));
         $deviceId = md5(uniqid('', true));
-        DeviceLogModel::createTable($table, ['deviceId' => $deviceId]);
+        DeviceLogModel::createSubTable($table, ['deviceId' => $deviceId]);
         $this->assertTableExists($table);
         $client->sql('DROP TABLE device.' . $table);
 
         $table = 'device_' . md5(uniqid('', true));
         $deviceId = md5(uniqid('', true));
-        DeviceLogModel::createTable($table, ['device_id' => $deviceId]);
+        DeviceLogModel::createSubTable($table, ['device_id' => $deviceId]);
         $this->assertTableExists($table);
         $client->sql('DROP TABLE device.' . $table);
     }
@@ -218,6 +218,23 @@ class ModelTest extends TestCase
 
     public function testQueryList(): void
     {
+        $condition = [
+            'device_id'=>'00000003'
+        ];
+        $colums = [
+            'time',
+            'device_id',
+            'voltage',
+            'electric_current',
+        ];
+        $pageSize = 2;
+        $page = 1;
+        $result = DeviceLogModel::queryList($condition, $colums, $pageSize, $page);
+        if(count($result->getData())!==1){
+            var_dump($result->getData());
+            $this->assertTrue(false);
+        }
+
         $time = (int) (microtime(true) * 1000);
         $condition = [
             ['<=', 'time', $time]
@@ -235,6 +252,7 @@ class ModelTest extends TestCase
             var_dump($result->getData());
             $this->assertTrue(false);
         }
+
         $colums = [
             'device_id'
         ];

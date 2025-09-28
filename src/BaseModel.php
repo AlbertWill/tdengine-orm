@@ -89,7 +89,7 @@ abstract class BaseModel implements \JsonSerializable
     }
 
     /**
-     * 创建表
+     * 创建超级表的子表
      * @param string $tableName 表名
      * @param array $tags 标签数组
      * @param bool $ifNotExists
@@ -97,7 +97,7 @@ abstract class BaseModel implements \JsonSerializable
      * @throws \Yurun\TDEngine\Exception\NetworkException
      * @throws \Yurun\TDEngine\Exception\OperationException
      */
-    public static function createTable(string $tableName, array $tags = [], bool $ifNotExists = true): IQueryResult
+    public static function createSubTable(string $tableName, array $tags = [], bool $ifNotExists = true): IQueryResult
     {
         $meta = self::__getMeta();
         $tableAnnotation = $meta->getTable();
@@ -161,6 +161,104 @@ abstract class BaseModel implements \JsonSerializable
     }
 
     /**
+     * 创建普通表
+     * @param bool $ifNotExists
+     * @return IQueryResult
+     * @throws \Yurun\TDEngine\Exception\NetworkException
+     * @throws \Yurun\TDEngine\Exception\OperationException
+     */
+    public static function createTables(bool $ifNotExists = true): IQueryResult
+    {
+        $meta = self::__getMeta();
+        $tableAnnotation = $meta->getTable();
+        $sql = 'CREATE TABLE ';
+        if ($ifNotExists)
+        {
+            $sql .= 'IF NOT EXISTS ';
+        }
+        $fields = [];
+        foreach ($meta->getFields() as $propertyName => $annotation)
+        {
+            $fields[] = '`' . ($annotation->name ?? $propertyName) . '` ' . $annotation->type . ($annotation->length > 0 ? ('(' . $annotation->length . ')') : '') . ($annotation->primary_key ? ' PRIMARY KEY' : '');
+        }
+        $sql .= self::getFullTableName() . ' (' . implode(',', $fields) . ')';
+
+        $tags = [];
+        foreach ($meta->getTags() as $propertyName => $annotation)
+        {
+            $tags[] = '`' . ($annotation->name ?? $propertyName) . '` ' . $annotation->type . ($annotation->length > 0 ? ('(' . $annotation->length . ')') : '');
+        }
+        if ($tags)
+        {
+            $sql .= ' TAGS ('.implode(',', $tags).')';
+        }
+
+        return TDEngineOrm::getClientHandler()->query($sql, $tableAnnotation->client ?? null);
+    }
+
+    /**
+     * 新增一个Tag列
+     * @param string $tag
+     * @return array
+     * @throws \Yurun\TDEngine\Exception\NetworkException
+     * @throws \Yurun\TDEngine\Exception\OperationException
+     */
+    public static function addTag(string $tag): array
+    {
+        //获取所有的TAGS
+        $tags = self::__getMeta()->getTags();
+        //判断是否存在这个tag
+        if(!array_key_exists($tag, $tags)){
+            throw new \RuntimeException('tag not exists');
+        }
+
+        //执行对象
+        $sql = 'ALTER STABLE ' . self::getFullTableName();
+
+        //新加的tags
+        $sql .=  ' ADD TAG `' . $tag . '` '. $tags[$tag]->type;
+
+        if($tags[$tag]->length > 0){
+            $sql .=  ' (' . $tags[$tag]->length . ')';
+        }
+
+        $result = TDEngineOrm::getClientHandler()->query($sql, self::__getMeta()->getTable()->client ?? null);
+
+        $rows = $result->getData();
+        return $rows;
+    }
+
+    /**
+     * 刷新Tag数据（新增一个Tag列时，刷新历史每个子表的这个Tag值用）
+     * @param string $subTableName
+     * @param string $tag
+     * @param $value
+     * @return array
+     * @throws \Yurun\TDEngine\Exception\NetworkException
+     * @throws \Yurun\TDEngine\Exception\OperationException
+     */
+    public static function flushTags(string $subTableName,string $tag, $value): array
+    {
+        //获取所有的TAGS
+        $tags = self::__getMeta()->getTags();
+        //判断是否存在这个tag
+        if(!array_key_exists($tag, $tags)){
+            throw new \RuntimeException("'tag:{$tag} not exists'");
+        }
+
+        //执行对象
+        $sql = 'ALTER TABLE ' . self::getSubTableName($subTableName);
+
+        //重置的tags
+        $sql .=  ' SET TAG `' . $tag . '` = '. self::parseValue($tags[$tag]->type, $value);
+
+        $result = TDEngineOrm::getClientHandler()->query($sql, self::__getMeta()->getTable()->client ?? null);
+
+        $rows = $result->getData();
+        return $rows;
+    }
+
+    /**
      * 批量插入数据
      * @param array $models
      * @return IQueryResult
@@ -178,18 +276,20 @@ abstract class BaseModel implements \JsonSerializable
             $tableAnnotation = $meta->getTable();
             $database = $tableAnnotation->database;
             $stable = $tableAnnotation->name;
+            if (null === ($table = $model->__getTable())){
+                throw new \RuntimeException('Table name cannot be null');
+            }
+            $data_sql .= '`' . $database . '`.`' . $table . '` ';
             if ($tableAnnotation->super)
             {
-                if (null === ($table = $model->__getTable()))
-                {
-                    throw new \RuntimeException('Table name cannot be null');
-                }
-                $data_sql .= '`' . $database . '`.`' . $table . '` USING `' . $database . '`.`' . $stable . '` ';
+                $data_sql .= 'USING `' . $database . '`.`' . $stable . '` ';
                 $tags = $tagValues = [];
                 foreach ($meta->getTags() as $propertyName => $tagAnnotation)
                 {
-                    $tags[] = '`' . ($tagAnnotation->name ?? $propertyName) . '`';
-                    $tagValues[] = self::parseValue($tagAnnotation->type, $model->$propertyName);
+                    if(isset($model->$propertyName)){
+                        $tags[] = '`' . ($tagAnnotation->name ?? $propertyName) . '`';
+                        $tagValues[] = self::parseValue($tagAnnotation->type, $model->$propertyName);
+                    }
                 }
                 if ($tags)
                 {
@@ -199,8 +299,10 @@ abstract class BaseModel implements \JsonSerializable
             $fields = $values = [];
             foreach ($meta->getFields() as $propertyName => $fieldAnnotation)
             {
-                $fields[] = '`' . ($fieldAnnotation->name ?? $propertyName) . '`';
-                $values[] = self::parseValue($fieldAnnotation->type, $model->$propertyName);
+                if(isset($model->$propertyName)){
+                    $fields[] = '`' . ($fieldAnnotation->name ?? $propertyName) . '`';
+                    $values[] = self::parseValue($fieldAnnotation->type, $model->$propertyName);
+                }
             }
             if ($fields)
             {
@@ -209,6 +311,7 @@ abstract class BaseModel implements \JsonSerializable
             $data_sql_arr[] = $data_sql;
         }
         $sql .= implode(',', $data_sql_arr);
+
         return TDEngineOrm::getClientHandler()->query($sql, self::__getMeta()->getTable()->client ?? null);
     }
 
@@ -244,6 +347,23 @@ abstract class BaseModel implements \JsonSerializable
      */
     public static function queryList(array $condition, $colums, int $pageSize=0, int $page=1,  $orderBy='',  $groupBy=''): IQueryResult
     {
+        $sql = self::buildQuery($condition, $colums, $pageSize, $page, $orderBy, $groupBy);
+
+        return TDEngineOrm::getClientHandler()->query($sql, self::__getMeta()->getTable()->client ?? null);
+    }
+
+    /**
+     * 生成查询sql语句
+     * @param array $condition
+     * @param $colums
+     * @param int $pageSize
+     * @param int $page
+     * @param string $orderBy
+     * @param string $groupBy
+     * @return string
+     */
+    public static function buildQuery(array $condition, $colums, int $pageSize=0, int $page=1,  $orderBy='',  $groupBy=''): string
+    {
         if(empty($colums))
         {
             throw new \RuntimeException('colums cannot be null');
@@ -273,8 +393,7 @@ abstract class BaseModel implements \JsonSerializable
                 $sql .= ' LIMIT ' . $pageSize;
             }
         }
-
-        return TDEngineOrm::getClientHandler()->query($sql, self::__getMeta()->getTable()->client ?? null);
+        return $sql;
     }
 
     /**
@@ -285,6 +404,17 @@ abstract class BaseModel implements \JsonSerializable
     {
         $tableAnnotation = self::__getMeta()->getTable();
         return '`' . $tableAnnotation->database . '`.`' . $tableAnnotation->name . '`';
+    }
+
+    /**
+     * 获取超级表子表的表名
+     * @param $subTableName
+     * @return string
+     */
+    public static function getSubTableName($subTableName):string
+    {
+        $tableAnnotation = self::__getMeta()->getTable();
+        return '`' . $tableAnnotation->database . '`.`' . $subTableName . '`';
     }
 
     /**
@@ -314,8 +444,15 @@ abstract class BaseModel implements \JsonSerializable
         $fieldTypeMap = self::getFieldTypeMap($meta);
         //生成where
         $where = [];
-        foreach ($condition as $item){
-            list($operator, $field, $value) = $item;
+        foreach ($condition as $key=>$item){
+            $itemTmp = $item;
+            if(is_string($key)){
+                if(!(is_string($item) || is_numeric($item))){
+                    throw new \RuntimeException('item type is invalid');
+                }
+                $itemTmp = ['=', $key, $item];
+            }
+            list($operator, $field, $value) = $itemTmp;
             //类型转换
             if(!isset($fieldTypeMap[$field])){
                 continue;
@@ -324,11 +461,11 @@ abstract class BaseModel implements \JsonSerializable
             if(is_array($value)){
                 $valueTmp = [];
                 foreach ($value as $v){
-                    $valueTmp[] = self::parseValue($fieldTypeMap[$field], $v);
+                    $valueTmp[] = self::parseWhereValue($fieldTypeMap[$field], $v);
                 }
                 $value_str =  '(' . implode(',', $valueTmp) . ')';
             }else{
-                $value_str = self::parseValue($fieldTypeMap[$field], $value);
+                $value_str = self::parseWhereValue($fieldTypeMap[$field], $value);
             }
             $where[] = '(`' . $field. '` ' .  $operator . ' ' . $value_str . ')';
         }
@@ -359,6 +496,91 @@ abstract class BaseModel implements \JsonSerializable
             $fieldTypeMap[$field] = $tagAnnotation->type;
         }
         return $fieldTypeMap;
+    }
+
+    /**
+     * 值转义
+     * @param string $type
+     * @param $value
+     * @return string
+     */
+    public static function parseValue(string $type, $value)
+    {
+        if (null === $value)
+        {
+            return 'NULL';
+        }
+        switch ($type)
+        {
+            case DataType::TIMESTAMP:
+                if (!\is_string($value))
+                {
+                    break;
+                }
+            // no break
+            case DataType::BINARY:
+            case DataType::VARCHAR:
+            case DataType::NCHAR:
+                return '\'' . strtr($value, [
+                        "\0"     => '\0',
+                        "\n"     => '\n',
+                        "\r"     => '\r',
+                        "\t"     => '\t',
+                        \chr(26) => '\Z',
+                        \chr(8)  => '\b',
+                        '"'      => '\"',
+                        '\''     => '\\\'',
+                        '_'      => '\_',
+                        '%'      => '\%',
+                        '\\'     => '\\\\',
+                    ]) . '\'';
+            case DataType::BOOL:
+                return $value ? 'true' : 'false';
+        }
+
+        return $value;
+    }
+
+    /**
+     * 查询条件中的值转义
+     * @param string $type
+     * @param $value
+     * @return string
+     */
+    public static function parseWhereValue(string $type, $value)
+    {
+        if (null === $value)
+        {
+            return 'NULL';
+        }
+        switch ($type)
+        {
+            case DataType::TIMESTAMP:
+                if (!\is_string($value))
+                {
+                    break;
+                }
+            // no break
+            case DataType::BINARY:
+            case DataType::VARCHAR:
+            case DataType::NCHAR:
+                return '\'' . strtr($value, [
+                        "\0"     => '\0',
+                        "\n"     => '\n',
+                        "\r"     => '\r',
+                        "\t"     => '\t',
+                        \chr(26) => '\Z',
+                        \chr(8)  => '\b',
+                        '"'      => '\"',
+                        '\''     => '\\\'',
+                        '_'      => '\_',
+                        '\\'     => '\\\\',
+                    ]) . '\'';
+            case DataType::BOOL:
+                return $value ? 'true' : 'false';
+        }
+
+        return $value;
     }
 
     /**
@@ -455,45 +677,4 @@ abstract class BaseModel implements \JsonSerializable
         return $this;
     }
 
-    /**
-     * @param string $type
-     * @param $value
-     * @return string
-     */
-    public static function parseValue(string $type, $value)
-    {
-        if (null === $value)
-        {
-            return 'NULL';
-        }
-        switch ($type)
-        {
-            case DataType::TIMESTAMP:
-                if (!\is_string($value))
-                {
-                    break;
-                }
-                // no break
-            case DataType::BINARY:
-            case DataType::VARCHAR:
-            case DataType::NCHAR:
-                return '\'' . strtr($value, [
-                    "\0"     => '\0',
-                    "\n"     => '\n',
-                    "\r"     => '\r',
-                    "\t"     => '\t',
-                    \chr(26) => '\Z',
-                    \chr(8)  => '\b',
-                    '"'      => '\"',
-                    '\''     => '\\\'',
-                    '_'      => '\_',
-                    '%'      => '\%',
-                    '\\'     => '\\\\',
-                ]) . '\'';
-            case DataType::BOOL:
-                return $value ? 'true' : 'false';
-        }
-
-        return $value;
-    }
 }
