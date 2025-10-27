@@ -442,38 +442,106 @@ abstract class BaseModel implements \JsonSerializable
     public static function buildWhere(Meta $meta, array $condition): string
     {
         $fieldTypeMap = self::getFieldTypeMap($meta);
-        //生成where
         $where = [];
-        foreach ($condition as $key=>$item){
-            $itemTmp = $item;
-            if(is_string($key)){
-                if(!(is_string($item) || is_numeric($item))){
-                    throw new \RuntimeException('item type is invalid');
+
+        foreach ($condition as $key => $item) {
+            //  形式1： 'field' => 'value'
+            if (is_string($key)) {
+                if (!(is_string($item) || is_numeric($item))) {
+                    throw new \RuntimeException("Invalid condition: field '$key' value type is invalid");
                 }
-                $itemTmp = ['=', $key, $item];
-            }
-            list($operator, $field, $value) = $itemTmp;
-            //类型转换
-            if(!isset($fieldTypeMap[$field])){
+                if (!isset($fieldTypeMap[$key])) {
+                    throw new \RuntimeException("Invalid condition: unknown field '$key'");
+                }
+                $valueStr = self::parseWhereValue($fieldTypeMap[$key], $item);
+                $where[] = "(`$key` = $valueStr)";
                 continue;
             }
-            $value_str = '';
-            if(is_array($value)){
-                $valueTmp = [];
-                foreach ($value as $v){
-                    $valueTmp[] = self::parseWhereValue($fieldTypeMap[$field], $v);
+
+            // 形式2： ['OR', [...], [...]]
+            if (is_array($item) && isset($item[0]) && strtoupper($item[0]) === 'OR') {
+                $sql = self::buildOrCondition($item, $fieldTypeMap);
+                if ($sql) {
+                    $where[] = $sql;
                 }
-                $value_str =  '(' . implode(',', $valueTmp) . ')';
-            }else{
-                $value_str = self::parseWhereValue($fieldTypeMap[$field], $value);
+                continue;
             }
-            $where[] = '(`' . $field. '` ' .  $operator . ' ' . $value_str . ')';
+
+            // 形式3： ['op', 'field', 'value']
+            if (is_array($item)) {
+                if (count($item) !== 3) {
+                    throw new \RuntimeException('Invalid condition: must be [operator, field, value] OR field=>value');
+                }
+
+                [$operator, $field, $value] = $item;
+
+                if (!isset($fieldTypeMap[$field])) {
+                    throw new \RuntimeException("Invalid condition: unknown field '$field'");
+                }
+
+                $valueStr = is_array($value)
+                    ? '(' . implode(',', array_map(fn($v) => self::parseWhereValue($fieldTypeMap[$field], $v), $value)) . ')'
+                    : self::parseWhereValue($fieldTypeMap[$field], $value);
+
+                $where[] = "(`$field` $operator $valueStr)";
+                continue;
+            }
+
+            // 不支持的结构，报错提示
+            throw new \RuntimeException('Invalid condition format: ' . json_encode($item, JSON_UNESCAPED_UNICODE));
         }
-        $sql = 'WHERE ';
-        if($where){
-            $sql .= implode(' AND ', $where);
+
+        return $where ? 'WHERE ' . implode(' AND ', $where) : '';
+    }
+
+    /**
+     * 构建 OR 条件组
+     * 示例：
+     * ['OR', 'item_id'=>'30713461', ['in', 'user_id', [1,2]], ['>', 'id', 552]]
+     */
+    public static function buildOrCondition(array $orCondition, array $fieldTypeMap): ?string
+    {
+        $orWhere = [];
+
+        foreach ($orCondition as $key => $subItem) {
+            //跳过 "OR" 字符串本身
+            if ((is_string($subItem) && strtoupper($subItem) === 'OR') || (is_string($key) && strtoupper($key) === 'OR')) {
+                continue;
+            }
+
+            // 形式： 'field' => value
+            if (is_string($key)) {
+                if (!isset($fieldTypeMap[$key])) {
+                    throw new \RuntimeException("Invalid OR condition: unknown field '$key'");
+                }
+                $vStr = self::parseWhereValue($fieldTypeMap[$key], $subItem);
+                $orWhere[] = "(`$key` = $vStr)";
+                continue;
+            }
+
+            // 形式： ['op', 'field', 'value']
+            if (is_array($subItem)) {
+                if (count($subItem) !== 3) {
+                    throw new \RuntimeException('Invalid OR condition: must be [operator, field, value] OR field=>value');
+                }
+
+                [$operator, $field, $value] = $subItem;
+                if (!isset($fieldTypeMap[$field])) {
+                    throw new \RuntimeException("Invalid OR condition: unknown field '$field'");
+                }
+
+                $valueStr = is_array($value)
+                    ? '(' . implode(',', array_map(fn($v) => self::parseWhereValue($fieldTypeMap[$field], $v), $value)) . ')'
+                    : self::parseWhereValue($fieldTypeMap[$field], $value);
+
+                $orWhere[] = "(`$field` $operator $valueStr)";
+                continue;
+            }
+
+            throw new \RuntimeException('Invalid OR condition format: ' . json_encode($subItem, JSON_UNESCAPED_UNICODE));
         }
-        return $sql;
+
+        return $orWhere ? '(' . implode(' OR ', $orWhere) . ')' : null;
     }
 
     /**
@@ -521,7 +589,7 @@ abstract class BaseModel implements \JsonSerializable
             case DataType::BINARY:
             case DataType::VARCHAR:
             case DataType::NCHAR:
-                return '\'' . strtr($value, [
+                return '\'' . strtr((string)$value, [
                         "\0"     => '\0',
                         "\n"     => '\n',
                         "\r"     => '\r',
@@ -564,7 +632,7 @@ abstract class BaseModel implements \JsonSerializable
             case DataType::BINARY:
             case DataType::VARCHAR:
             case DataType::NCHAR:
-                return '\'' . strtr($value, [
+                return '\'' . strtr((string)$value, [
                         "\0"     => '\0',
                         "\n"     => '\n',
                         "\r"     => '\r',
@@ -581,6 +649,16 @@ abstract class BaseModel implements \JsonSerializable
         }
 
         return $value;
+    }
+
+    /**
+     * 判断是否关联数组
+     * @param array $arr
+     * @return bool
+     */
+    public static function isAssocArray(array $arr): bool
+    {
+        return array_keys($arr) !== range(0, count($arr) - 1);
     }
 
     /**

@@ -268,6 +268,29 @@ class ModelTest extends TestCase
         $this->assertTrue(true);
     }
 
+
+    public function testBuildWhere(): void
+    {
+        $condition = [
+            'voltage'=>1.2999999523162842,
+            ['=', 'device_id', '30713461'],
+            ['OR',
+                'device_id' => '8888',
+                ['in', 'device_id', [1, 2]],
+                ['>', 'voltage', 1.100000023841858]
+            ],
+            ['>=', 'time', '2025-10-24 15:11:23'],
+        ];
+        $sql = DeviceLogModel::buildWhere(DeviceLogModel::__getMeta(), $condition);
+
+        if ("WHERE (`voltage` = 1.2999999523163) AND (`device_id` = '30713461') AND ((`device_id` = '8888') OR (`device_id` in ('1','2')) OR (`voltage` > 1.1000000238419)) AND (`time` >= '2025-10-24 15:11:23')" !== $sql)
+        {
+            $this->assertTrue(false);
+        }
+
+        $this->assertTrue(true);
+    }
+
     private function assertTableExists(string $tableName): void
     {
         $result = TDEngineManager::getClient('test')->sql('show device.tables');

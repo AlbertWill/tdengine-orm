@@ -3,6 +3,7 @@
     "license": "MIT",
     "require": {
         "php": ">=7.1",
+        "ext-json": "*",
         "yurunsoft/tdengine-restful-connector": "^1.0",
         "doctrine/annotations": "^1.13",
         "symfony/polyfill-php81": "*"
