@@ -197,6 +197,23 @@ abstract class BaseModel implements \JsonSerializable
     }
 
     /**
+     * 判断表是否存在
+     * @param string $tableName
+     * @return bool
+     * @throws \Yurun\TDEngine\Exception\NetworkException
+     * @throws \Yurun\TDEngine\Exception\OperationException
+     */
+    public static function tableExists(string $tableName): bool
+    {
+        $meta = self::__getMeta();
+        $tableAnnotation = $meta->getTable();
+        $database = $tableAnnotation->database;
+        $sql = "SHOW {$database}.tables LIKE '$tableName'";
+        $tables = TDEngineOrm::getClientHandler()->query($sql, $tableAnnotation->client ?? null);
+        return !empty($tables);
+    }
+
+    /**
      * 新增一个Tag列
      * @param string $tag
      * @return array
