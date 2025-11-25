@@ -216,11 +216,11 @@ abstract class BaseModel implements \JsonSerializable
     /**
      * 新增一个Tag列
      * @param string $tag
-     * @return array
+     * @return int
      * @throws \Yurun\TDEngine\Exception\NetworkException
      * @throws \Yurun\TDEngine\Exception\OperationException
      */
-    public static function addTag(string $tag): array
+    public static function addTag(string $tag): int
     {
         //获取所有的TAGS
         $tags = self::__getMeta()->getTags();
@@ -241,8 +241,7 @@ abstract class BaseModel implements \JsonSerializable
 
         $result = TDEngineOrm::getClientHandler()->query($sql, self::__getMeta()->getTable()->client ?? null);
 
-        $rows = $result->getData();
-        return $rows;
+        return $result->affectedRows();
     }
 
     /**
@@ -250,11 +249,11 @@ abstract class BaseModel implements \JsonSerializable
      * @param string $subTableName
      * @param string $tag
      * @param $value
-     * @return array
+     * @return int
      * @throws \Yurun\TDEngine\Exception\NetworkException
      * @throws \Yurun\TDEngine\Exception\OperationException
      */
-    public static function flushTags(string $subTableName,string $tag, $value): array
+    public static function flushTags(string $subTableName,string $tag, $value): int
     {
         //获取所有的TAGS
         $tags = self::__getMeta()->getTags();
@@ -271,8 +270,7 @@ abstract class BaseModel implements \JsonSerializable
 
         $result = TDEngineOrm::getClientHandler()->query($sql, self::__getMeta()->getTable()->client ?? null);
 
-        $rows = $result->getData();
-        return $rows;
+        return $result->affectedRows();
     }
 
     /**
